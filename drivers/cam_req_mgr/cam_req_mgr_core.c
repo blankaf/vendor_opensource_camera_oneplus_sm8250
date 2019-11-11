@@ -609,9 +609,6 @@ static void __cam_req_mgr_validate_crm_wd_timer(
 	CAM_DBG(CAM_CRM,
 		"rd_idx: %d idx: %d current_frame_timeout: %d ms",
 		in_q->rd_idx, idx, current_frame_timeout);
-
-        if ((!current_frame_timeout) && (!next_frame_timeout))
-		return;
 	spin_lock_bh(&link->link_state_spin_lock);
 	if (link->watchdog) {
 		if ((next_frame_timeout + CAM_REQ_MGR_WATCHDOG_TIMEOUT) >
