@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -609,40 +609,32 @@ static void __cam_req_mgr_validate_crm_wd_timer(
 	CAM_DBG(CAM_CRM,
 		"rd_idx: %d idx: %d current_frame_timeout: %d ms",
 		in_q->rd_idx, idx, current_frame_timeout);
-	spin_lock_bh(&link->link_state_spin_lock);
-	if (link->watchdog) {
-		if ((next_frame_timeout + CAM_REQ_MGR_WATCHDOG_TIMEOUT) >
-			link->watchdog->expires) {
-			CAM_DBG(CAM_CRM,
-				"Modifying wd timer expiry from %d ms to %d ms",
-				link->watchdog->expires,
-				(next_frame_timeout +
-				 CAM_REQ_MGR_WATCHDOG_TIMEOUT));
-			crm_timer_modify(link->watchdog,
-				next_frame_timeout +
-				CAM_REQ_MGR_WATCHDOG_TIMEOUT);
-		} else if (current_frame_timeout) {
-			CAM_DBG(CAM_CRM,
-				"Reset wd timer to frame from %d ms to %d ms",
-				link->watchdog->expires,
-				(current_frame_timeout +
-				 CAM_REQ_MGR_WATCHDOG_TIMEOUT));
-			crm_timer_modify(link->watchdog,
-				current_frame_timeout +
-				CAM_REQ_MGR_WATCHDOG_TIMEOUT);
-		} else if (link->watchdog->expires >
-			CAM_REQ_MGR_WATCHDOG_TIMEOUT) {
-			CAM_DBG(CAM_CRM,
-				"Reset wd timer to default from %d ms to %d ms",
-				link->watchdog->expires,
-				CAM_REQ_MGR_WATCHDOG_TIMEOUT);
-			crm_timer_modify(link->watchdog,
-				CAM_REQ_MGR_WATCHDOG_TIMEOUT);
-		}
-	} else {
-		CAM_WARN(CAM_CRM, "Watchdog timer exited already");
+
+	if ((next_frame_timeout + CAM_REQ_MGR_WATCHDOG_TIMEOUT) >
+		link->watchdog->expires) {
+		CAM_DBG(CAM_CRM,
+			"Modifying wd timer expiry from %d ms to %d ms",
+			link->watchdog->expires,
+			(next_frame_timeout + CAM_REQ_MGR_WATCHDOG_TIMEOUT));
+		crm_timer_modify(link->watchdog,
+			next_frame_timeout +
+			CAM_REQ_MGR_WATCHDOG_TIMEOUT);
+	} else if (current_frame_timeout) {
+		CAM_DBG(CAM_CRM,
+			"Reset wd timer to current frame from %d ms to %d ms",
+			link->watchdog->expires,
+			(current_frame_timeout + CAM_REQ_MGR_WATCHDOG_TIMEOUT));
+		crm_timer_modify(link->watchdog,
+			current_frame_timeout +
+			CAM_REQ_MGR_WATCHDOG_TIMEOUT);
+	} else if (link->watchdog->expires >
+		CAM_REQ_MGR_WATCHDOG_TIMEOUT) {
+		CAM_DBG(CAM_CRM,
+			"Reset wd timer to default from %d ms to %d ms",
+			link->watchdog->expires, CAM_REQ_MGR_WATCHDOG_TIMEOUT);
+		crm_timer_modify(link->watchdog,
+			CAM_REQ_MGR_WATCHDOG_TIMEOUT);
 	}
-	spin_unlock_bh(&link->link_state_spin_lock);
 }
 
 /**
@@ -1767,14 +1759,6 @@ static int __cam_req_mgr_process_sof_freeze(void *priv, void *data)
 	link = (struct cam_req_mgr_core_link *)priv;
 	session = (struct cam_req_mgr_core_session *)link->parent;
 
-	spin_lock_bh(&link->link_state_spin_lock);
-	if ((link->watchdog) && (link->watchdog->pause_timer)) {
-		CAM_INFO(CAM_CRM, "Watchdog Paused");
-		spin_unlock_bh(&link->link_state_spin_lock);
-		return rc;
-	}
-	spin_unlock_bh(&link->link_state_spin_lock);
-
 	CAM_ERR(CAM_CRM, "SOF freeze for session %d link 0x%x",
 		session->session_hdl, link->link_hdl);
 
@@ -1818,6 +1802,9 @@ static void __cam_req_mgr_sof_freeze(struct timer_list *timer_data)
 	}
 
 	link = (struct cam_req_mgr_core_link *)timer->parent;
+
+	if (link->watchdog->pause_timer)
+		return;
 
 	task = cam_req_mgr_workq_get_task(link->workq);
 	if (!task) {
@@ -2816,9 +2803,11 @@ static int cam_req_mgr_cb_notify_timer(
 		rc = -EPERM;
 		goto end;
 	}
-	if ((link->watchdog) && (!timer_data->state))
-		link->watchdog->pause_timer = true;
 	spin_unlock_bh(&link->link_state_spin_lock);
+
+
+	if (!timer_data->state)
+		link->watchdog->pause_timer = true;
 
 end:
 	return rc;
@@ -2926,7 +2915,7 @@ static int cam_req_mgr_cb_notify_trigger(
 		goto end;
 	}
 
-	if ((link->watchdog) && (link->watchdog->pause_timer))
+	if (link->watchdog->pause_timer)
 		link->watchdog->pause_timer = false;
 
 	crm_timer_reset(link->watchdog);
@@ -3210,18 +3199,18 @@ static int __cam_req_mgr_unlink(struct cam_req_mgr_core_link *link)
 	}
 
 	mutex_lock(&link->lock);
-        /* Destroy workq of link */
-        cam_req_mgr_workq_destroy(&link->workq);
+	/* Destroy workq of link */
+	cam_req_mgr_workq_destroy(&link->workq);
+
 
 	/* Destroy timer of link */
 	spin_lock_bh(&link->link_state_spin_lock);
 	crm_timer_exit(&link->watchdog);
-	spin_unlock_bh(&link->link_state_spin_lock);
 
 	/* Cleanup request tables and unlink devices */
 	__cam_req_mgr_destroy_link_info(link);
-	/* Free memory holding data of linked devs */
 
+	/* Free memory holding data of linked devs */
 	__cam_req_mgr_destroy_subdev(link->l_dev);
 
 	/* Destroy the link handle */
@@ -3853,6 +3842,7 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 			link->state = CAM_CRM_LINK_STATE_READY;
 			link->is_first_req = true;
 			spin_unlock_bh(&link->link_state_spin_lock);
+
 			/* Start SOF watchdog timer */
 			rc = crm_timer_init(&link->watchdog,
 				CAM_REQ_MGR_WATCHDOG_TIMEOUT, link,
@@ -3874,6 +3864,11 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 					dev->ops->process_evt(&evt_data);
 			}
 		} else if (control->ops == CAM_REQ_MGR_LINK_DEACTIVATE) {
+			/* Destroy SOF watchdog timer */
+			spin_lock_bh(&link->link_state_spin_lock);
+			crm_timer_exit(&link->watchdog);
+			link->is_first_req = false;
+			spin_unlock_bh(&link->link_state_spin_lock);
 			/* notify nodes */
 			for (j = 0; j < link->num_devs; j++) {
 				dev = &link->l_dev[j];
@@ -3884,12 +3879,6 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 				if (dev->ops && dev->ops->process_evt)
 					dev->ops->process_evt(&evt_data);
 			}
-			/* Destroy SOF watchdog timer */
-			spin_lock_bh(&link->link_state_spin_lock);
-			link->state = CAM_CRM_LINK_STATE_IDLE;
-			link->is_first_req = false;
-			crm_timer_exit(&link->watchdog);
-			spin_unlock_bh(&link->link_state_spin_lock);
 		} else {
 			CAM_ERR(CAM_CRM, "Invalid link control command");
 			rc = -EINVAL;
