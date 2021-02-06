@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -1036,7 +1036,7 @@ static int cam_ife_hw_mgr_acquire_res_bus_rd(
 					/*TBD */
 					vfe_acquire.vfe_out.is_master     = 1;
 					vfe_acquire.vfe_out.dual_slave_core =
-					ife_ctx->slave_hw_idx;
+						(hw_intf->hw_idx == 0) ? 1 : 0;
 				} else {
 					vfe_acquire.vfe_out.is_master   = 0;
 					vfe_acquire.vfe_out.dual_slave_core =
@@ -1047,7 +1047,7 @@ static int cam_ife_hw_mgr_acquire_res_bus_rd(
 					CAM_ISP_HW_SPLIT_RIGHT;
 				vfe_acquire.vfe_out.is_master       = 0;
 				vfe_acquire.vfe_out.dual_slave_core =
-					ife_ctx->master_hw_idx;
+					(hw_intf->hw_idx == 0) ? 1 : 0;
 			}
 			rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
 				&vfe_acquire,
@@ -1229,7 +1229,7 @@ static int cam_ife_hw_mgr_acquire_res_ife_out_pixel(
 					/*TBD */
 					vfe_acquire.vfe_out.is_master     = 1;
 					vfe_acquire.vfe_out.dual_slave_core =
-						ife_ctx->slave_hw_idx;
+						(hw_intf->hw_idx == 0) ? 1 : 0;
 				} else {
 					vfe_acquire.vfe_out.is_master   = 0;
 					vfe_acquire.vfe_out.dual_slave_core =
@@ -1240,8 +1240,9 @@ static int cam_ife_hw_mgr_acquire_res_ife_out_pixel(
 					CAM_ISP_HW_SPLIT_RIGHT;
 				vfe_acquire.vfe_out.is_master       = 0;
 				vfe_acquire.vfe_out.dual_slave_core =
-					ife_ctx->master_hw_idx;
+					(hw_intf->hw_idx == 0) ? 1 : 0;
 			}
+
 			rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
 				&vfe_acquire,
 				sizeof(struct cam_vfe_acquire_args));
@@ -1470,16 +1471,6 @@ static int cam_convert_hw_idx_to_ife_hw_num(int hw_idx)
 			else if (hw_idx == 4)
 				return CAM_ISP_IFE2_LITE_HW;
 			break;
-		case CAM_CPAS_TITAN_170_V200:
-			if (hw_idx == 0)
-				return CAM_ISP_IFE0_HW;
-			else if (hw_idx == 1)
-				return CAM_ISP_IFE1_HW;
-			else if (hw_idx == 2)
-				return CAM_ISP_IFE2_HW;
-			else if (hw_idx == 3)
-				return CAM_ISP_IFE0_LITE_HW;
-			break;
 		default:
 			CAM_ERR(CAM_ISP, "Invalid hw_version: 0x%X",
 				hw_version);
@@ -1576,7 +1567,6 @@ static int cam_ife_hw_mgr_acquire_res_ife_src(
 			else
 				vfe_acquire.vfe_in.sync_mode =
 				CAM_ISP_HW_SYNC_NONE;
-			vfe_acquire.vfe_in.is_dual = csid_res->is_dual_vfe;
 
 			break;
 		case CAM_IFE_PIX_PATH_RES_PPP:
@@ -1617,20 +1607,12 @@ static int cam_ife_hw_mgr_acquire_res_ife_src(
 			hw_intf = ife_hw_mgr->ife_devices[
 				csid_res->hw_res[i]->hw_intf->hw_idx];
 
-			if (i == CAM_ISP_HW_SPLIT_LEFT &&
-				ife_src_res->is_dual_vfe) {
-				vfe_acquire.vfe_in.dual_hw_idx =
-					ife_ctx->slave_hw_idx;
-			}
 			/* fill in more acquire information as needed */
 			/* slave Camif resource, */
 			if (i == CAM_ISP_HW_SPLIT_RIGHT &&
-				ife_src_res->is_dual_vfe) {
+				ife_src_res->is_dual_vfe)
 				vfe_acquire.vfe_in.sync_mode =
 				CAM_ISP_HW_SYNC_SLAVE;
-				vfe_acquire.vfe_in.dual_hw_idx =
-					ife_ctx->master_hw_idx;
-			}
 
 			rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
 					&vfe_acquire,
@@ -1674,54 +1656,6 @@ static int cam_ife_hw_mgr_acquire_res_ife_src(
 	return 0;
 err:
 	/* release resource at the entry function */
-	return rc;
-}
-
-static int cam_ife_hw_mgr_acquire_csid_hw(
-	struct cam_ife_hw_mgr *ife_hw_mgr,
-	struct cam_csid_hw_reserve_resource_args  *csid_acquire,
-	bool is_start_lower_idx)
-{
-	int i;
-	int rc = -1;
-	struct cam_hw_intf  *hw_intf;
-
-	if (!ife_hw_mgr || !csid_acquire) {
-		CAM_ERR(CAM_ISP,
-			"Invalid args ife hw mgr %pK csid_acquire %pK",
-			ife_hw_mgr, csid_acquire);
-		return -EINVAL;
-	}
-
-	if (is_start_lower_idx) {
-		for (i =  0; i < CAM_IFE_CSID_HW_NUM_MAX; i++) {
-			if (!ife_hw_mgr->csid_devices[i])
-				continue;
-
-			hw_intf = ife_hw_mgr->csid_devices[i];
-			rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
-				csid_acquire,
-				sizeof(struct
-					cam_csid_hw_reserve_resource_args));
-			if (!rc)
-				return rc;
-		}
-		return rc;
-	}
-
-	for (i = CAM_IFE_CSID_HW_NUM_MAX - 1; i >= 0; i--) {
-		if (!ife_hw_mgr->csid_devices[i])
-			continue;
-
-		hw_intf = ife_hw_mgr->csid_devices[i];
-		rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
-			csid_acquire,
-			sizeof(struct
-				cam_csid_hw_reserve_resource_args));
-		if (!rc)
-			return rc;
-	}
-
 	return rc;
 }
 
@@ -1817,21 +1751,52 @@ static int cam_ife_mgr_acquire_cid_res(
 	}
 
 	/* Acquire Left if not already acquired */
-	/* For dual IFE cases, start acquiring the lower idx first */
-	if (ife_ctx->is_fe_enable || in_port->usage_type)
-		rc = cam_ife_hw_mgr_acquire_csid_hw(ife_hw_mgr,
-			&csid_acquire, true);
-	else
-		rc = cam_ife_hw_mgr_acquire_csid_hw(ife_hw_mgr,
-			&csid_acquire, false);
+	if (ife_ctx->is_fe_enable) {
+		for (i = 0; i < CAM_IFE_CSID_HW_NUM_MAX; i++) {
+			if (!ife_hw_mgr->csid_devices[i])
+				continue;
 
-	if (rc || !csid_acquire.node_res) {
-		CAM_ERR(CAM_ISP,
-			"Can not acquire ife cid resource for path %d",
-			path_res_id);
-		goto put_res;
+			hw_intf = ife_hw_mgr->csid_devices[i];
+			rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
+				&csid_acquire, sizeof(csid_acquire));
+			if (rc)
+				continue;
+			else {
+				cid_res_temp->hw_res[acquired_cnt++] =
+					csid_acquire.node_res;
+				break;
+			}
+		}
+		if (i == CAM_IFE_CSID_HW_NUM_MAX || !csid_acquire.node_res) {
+			CAM_ERR(CAM_ISP,
+				"Can not acquire ife cid resource for path %d",
+				path_res_id);
+			goto put_res;
+		}
+	} else {
+		for (i = CAM_IFE_CSID_HW_NUM_MAX - 1; i >= 0; i--) {
+			if (!ife_hw_mgr->csid_devices[i])
+				continue;
+
+			hw_intf = ife_hw_mgr->csid_devices[i];
+			rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
+				&csid_acquire, sizeof(csid_acquire));
+			if (rc)
+				continue;
+			else {
+				cid_res_temp->hw_res[acquired_cnt++] =
+					csid_acquire.node_res;
+				break;
+			}
+		}
+		if (i == -1 || !csid_acquire.node_res) {
+			CAM_ERR(CAM_ISP,
+				"Can not acquire ife cid resource for path %d",
+				path_res_id);
+			goto put_res;
+		}
 	}
-	cid_res_temp->hw_res[acquired_cnt++] = csid_acquire.node_res;
+
 
 acquire_successful:
 	CAM_DBG(CAM_ISP, "CID left acquired success is_dual %d",
@@ -1842,9 +1807,7 @@ acquire_successful:
 	cid_res_temp->res_id = csid_acquire.node_res->res_id;
 	cid_res_temp->is_dual_vfe = in_port->usage_type;
 	ife_ctx->is_dual = (bool)in_port->usage_type;
-	if (ife_ctx->is_dual)
-		ife_ctx->master_hw_idx =
-			cid_res_temp->hw_res[0]->hw_intf->hw_idx;
+
 	if (in_port->num_out_res)
 		cid_res_temp->is_secure = out_port->secure_mode;
 
@@ -1881,8 +1844,6 @@ acquire_successful:
 			goto end;
 		}
 		cid_res_temp->hw_res[1] = csid_acquire.node_res;
-		ife_ctx->slave_hw_idx =
-			cid_res_temp->hw_res[1]->hw_intf->hw_idx;
 		CAM_DBG(CAM_ISP, "CID right acquired success is_dual %d",
 			in_port->usage_type);
 	}
@@ -5837,7 +5798,6 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 	struct cam_ife_hw_mgr_ctx *ctx = (struct cam_ife_hw_mgr_ctx *)
 		hw_cmd_args->ctxt_to_hw_map;
 	struct cam_isp_hw_cmd_args *isp_hw_cmd_args = NULL;
-	struct cam_packet          *packet;
 
 	if (!hw_mgr_priv || !cmd_args) {
 		CAM_ERR(CAM_ISP, "Invalid arguments");
@@ -5877,17 +5837,6 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_RDI;
 			else
 				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_PIX;
-			break;
-		case CAM_ISP_HW_MGR_GET_PACKET_OPCODE:
-			packet = (struct cam_packet *)
-				isp_hw_cmd_args->cmd_data;
-			if (((packet->header.op_code + 1) & 0xF) ==
-				CAM_ISP_PACKET_INIT_DEV)
-				isp_hw_cmd_args->u.packet_op_code =
-				CAM_ISP_PACKET_INIT_DEV;
-			else
-				isp_hw_cmd_args->u.packet_op_code =
-				CAM_ISP_PACKET_UPDATE_DEV;
 			break;
 		default:
 			CAM_ERR(CAM_ISP, "Invalid HW mgr command:0x%x",
@@ -6313,10 +6262,9 @@ static int cam_ife_hw_mgr_handle_hw_rup(
 
 	switch (event_info->res_id) {
 	case CAM_ISP_HW_VFE_IN_CAMIF:
-		if ((ife_hw_mgr_ctx->is_dual) &&
-			(event_info->hw_idx !=
-			ife_hw_mgr_ctx->master_hw_idx))
-			break;
+		if (ife_hw_mgr_ctx->is_dual)
+			if (event_info->hw_idx != 1)
+				break;
 
 		if (atomic_read(&ife_hw_mgr_ctx->overflow_pending))
 			break;
@@ -6357,8 +6305,8 @@ static int cam_ife_hw_mgr_check_irq_for_dual_vfe(
 {
 	int32_t                               rc = -1;
 	uint32_t                             *event_cnt = NULL;
-	uint32_t                              master_hw_idx;
-	uint32_t                              slave_hw_idx;
+	uint32_t                              core_idx0 = 0;
+	uint32_t                              core_idx1 = 1;
 
 	if (!ife_hw_mgr_ctx->is_dual)
 		return 0;
@@ -6377,27 +6325,24 @@ static int cam_ife_hw_mgr_check_irq_for_dual_vfe(
 		return 0;
 	}
 
-	master_hw_idx = ife_hw_mgr_ctx->master_hw_idx;
-	slave_hw_idx =  ife_hw_mgr_ctx->slave_hw_idx;
+	if (event_cnt[core_idx0] == event_cnt[core_idx1]) {
 
-	if (event_cnt[master_hw_idx] == event_cnt[slave_hw_idx]) {
-
-		event_cnt[master_hw_idx] = 0;
-		event_cnt[slave_hw_idx] = 0;
+		event_cnt[core_idx0] = 0;
+		event_cnt[core_idx1] = 0;
 
 		rc = 0;
 		return rc;
 	}
 
-	if ((event_cnt[master_hw_idx] &&
-		(event_cnt[master_hw_idx] - event_cnt[slave_hw_idx] > 1)) ||
-		(event_cnt[slave_hw_idx] &&
-		(event_cnt[slave_hw_idx] - event_cnt[master_hw_idx] > 1))) {
+	if ((event_cnt[core_idx0] &&
+		(event_cnt[core_idx0] - event_cnt[core_idx1] > 1)) ||
+		(event_cnt[core_idx1] &&
+		(event_cnt[core_idx1] - event_cnt[core_idx0] > 1))) {
 
 		CAM_ERR_RATE_LIMIT(CAM_ISP,
-			"One of the VFE could not generate hw event %d master[%d] core_cnt %d slave[%d] core_cnt %d",
-			hw_event_type, master_hw_idx, event_cnt[master_hw_idx],
-			slave_hw_idx, event_cnt[slave_hw_idx]);
+			"One of the VFE could not generate hw event %d core_0_cnt %d core_1_cnt %d",
+			hw_event_type, event_cnt[core_idx0],
+			event_cnt[core_idx1]);
 		rc = -1;
 		return rc;
 	}

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -431,6 +431,13 @@ static void __cam_isp_ctx_send_sof_boot_timestamp(
 		 request_id, ctx_isp->frame_id,
 		 ctx_isp->boot_timestamp);
 
+	if (cam_is_log_enabled(CAM_CUSTOM)) {
+		 CAM_DBG(CAM_ISP,
+			"#request id:%lld frame number:%lld boot time stamp:%lld\n",
+			request_id, ctx_isp->frame_id,
+			ctx_isp->boot_timestamp);
+	}
+
 	if (cam_req_mgr_notify_message(&req_msg,
 		V4L_EVENT_CAM_REQ_MGR_SOF_BOOT_TS,
 		V4L_EVENT_CAM_REQ_MGR_EVENT))
@@ -457,6 +464,14 @@ static void __cam_isp_ctx_send_sof_timestamp(
 		"request id:%lld frame number:%lld SOF time stamp:0x%llx",
 		 request_id, ctx_isp->frame_id,
 		ctx_isp->sof_timestamp_val);
+
+	if (cam_is_log_enabled(CAM_CUSTOM)) {
+		 CAM_DBG(CAM_ISP,
+			"#request id:%lld frame number:%lld SOF time stamp:%lld\n",
+			request_id, ctx_isp->frame_id,
+			ctx_isp->sof_timestamp_val);
+	}
+
 	CAM_DBG(CAM_ISP, "sof status:%d", sof_event_status);
 
 	if (cam_req_mgr_notify_message(&req_msg,
@@ -2496,7 +2511,7 @@ static int __cam_isp_ctx_rdi_only_sof_in_bubble_applied(
 		 * If no pending req in epoch, this is an error case.
 		 * The recovery is to go back to sof state
 		 */
-		CAM_ERR(CAM_ISP, "No wait request");
+		CAM_ERR(CAM_ISP, "Ctx:%d No wait request", ctx->ctx_id);
 		ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_SOF;
 
 		/* Send SOF event as empty frame*/
@@ -2986,9 +3001,6 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	struct cam_req_mgr_add_request    add_req;
 	struct cam_isp_context           *ctx_isp =
 		(struct cam_isp_context *) ctx->ctx_priv;
-	struct cam_hw_cmd_args           hw_cmd_args;
-	struct cam_isp_hw_cmd_args       isp_hw_cmd_args;
-	uint32_t                         packet_opcode = 0;
 
 	CAM_DBG(CAM_ISP, "get free request object......");
 
@@ -3037,23 +3049,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	CAM_DBG(CAM_ISP, "Packet size 0x%x", packet->header.size);
 	CAM_DBG(CAM_ISP, "packet op %d", packet->header.op_code);
 
-	/* Query the packet opcode */
-	hw_cmd_args.ctxt_to_hw_map = ctx_isp->hw_ctx;
-	hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
-	isp_hw_cmd_args.cmd_type = CAM_ISP_HW_MGR_GET_PACKET_OPCODE;
-	isp_hw_cmd_args.cmd_data = (void *)packet;
-	hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
-	rc = ctx->hw_mgr_intf->hw_cmd(ctx->hw_mgr_intf->hw_mgr_priv,
-		&hw_cmd_args);
-	if (rc) {
-		CAM_ERR(CAM_ISP, "HW command failed");
-		goto free_req;
-	}
-
-	packet_opcode = isp_hw_cmd_args.u.packet_op_code;
-	CAM_DBG(CAM_ISP, "packet op %d", packet_opcode);
-
-	if ((packet_opcode == CAM_ISP_PACKET_UPDATE_DEV)
+	if ((((packet->header.op_code + 1) & 0xF) == CAM_ISP_PACKET_UPDATE_DEV)
 		&& (packet->header.request_id <= ctx->last_flush_req)) {
 		CAM_INFO(CAM_ISP,
 			"request %lld has been flushed, reject packet",
