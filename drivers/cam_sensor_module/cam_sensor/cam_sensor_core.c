@@ -1543,23 +1543,11 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			rc = cam_sensor_apply_settings(s_ctrl, 0,
 				CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG);
 
-			if ((rc == -EAGAIN) &&
-			(s_ctrl->io_master_info.master_type == CCI_MASTER)) {
-				/* If CCI hardware is resetting we need to wait for sometime
-				 * before reapply
-				 */
-				CAM_WARN(CAM_SENSOR,
-					"Reapplying the Init settings due to cci hw reset");
-				usleep_range(5000, 5010);
-				rc = cam_sensor_apply_settings(s_ctrl, 0,
-					CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG);
-			}
 			s_ctrl->i2c_data.init_settings.request_id = -1;
 
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,
-					"cannot apply init settings rc= %d",
-					rc);
+					"cannot apply init settings");
 				delete_request(&s_ctrl->i2c_data.init_settings);
 				goto release_mutex;
 			}
