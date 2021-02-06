@@ -36,6 +36,7 @@
 #define MAXIMUM_RETRY_ATTEMPTS 2
 
 #define MINIMUM_WORKQUEUE_SCHED_TIME_IN_MS 5
+#define MAXIMUM_RETRY_ATTEMPTS 6
 
 #define VERSION_1  1
 #define VERSION_2  2
@@ -354,6 +355,7 @@ struct cam_req_mgr_connected_device {
  * @skip_wd_validation   : skip initial frames crm_wd_timer validation in the
  *                         case of long exposure use case
  * @last_applied_jiffies : Record the jiffies of last applied req
+ * @is_first_req         : Flag to indicate about link first req
  */
 struct cam_req_mgr_core_link {
 	int32_t                              link_hdl;
@@ -388,6 +390,7 @@ struct cam_req_mgr_core_link {
 	uint32_t    trigger_cnt[CAM_REQ_MGR_MAX_TRIGGERS];
 	bool                                 skip_wd_validation;
 	uint64_t                             last_applied_jiffies;
+	bool                                 is_first_req;
 };
 
 /**

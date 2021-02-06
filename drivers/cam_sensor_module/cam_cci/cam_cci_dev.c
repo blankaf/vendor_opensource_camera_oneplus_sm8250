@@ -276,6 +276,7 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 
 		cci_dev->cci_master_info[MASTER_1].reset_pending = true;
 		cam_io_w_mb(CCI_M1_RESET_RMSK, base + CCI_RESET_CMD_ADDR);
+		cam_io_w_mb(CCI_M1_HALT_REQ_RMSK, base + CCI_HALT_REQ_ADDR);
 	}
 
 	cam_io_w_mb(irq_status0, base + CCI_IRQ_CLEAR_0_ADDR);

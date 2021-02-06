@@ -1370,7 +1370,7 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 		CAM_ERR(CAM_CPAS, "client=[%d][%s][%d] is in start state",
 			client_indx, cpas_client->data.identifier,
 			cpas_client->data.cell_index);
-		rc = -EPERM;
+		rc = -EALREADY;
 		goto error;
 	}
 
@@ -2181,10 +2181,10 @@ ahb_cleanup:
 	cam_cpas_util_unregister_bus_client(&cpas_core->ahb_bus_client);
 client_cleanup:
 	cam_cpas_util_client_cleanup(cpas_hw);
-	cam_cpas_node_tree_cleanup(cpas_core, cpas_hw->soc_info.soc_private);
 deinit_platform_res:
 	cam_cpas_soc_deinit_resources(&cpas_hw->soc_info);
 release_workq:
+	cam_cpas_node_tree_cleanup(cpas_core, cpas_hw->soc_info.soc_private);
 	flush_workqueue(cpas_core->work_queue);
 	destroy_workqueue(cpas_core->work_queue);
 release_mem:

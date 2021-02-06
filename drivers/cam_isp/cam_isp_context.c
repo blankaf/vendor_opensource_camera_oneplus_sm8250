@@ -625,6 +625,13 @@ static void __cam_isp_ctx_send_sof_boot_timestamp(
 		 request_id, ctx_isp->frame_id,
 		 ctx_isp->boot_timestamp, sof_event_status);
 
+	if (cam_is_log_enabled(CAM_CUSTOM)) {
+		 CAM_DBG(CAM_ISP,
+			"#request id:%lld frame number:%lld boot time stamp:%lld\n",
+			request_id, ctx_isp->frame_id,
+			ctx_isp->boot_timestamp);
+	}
+
 	if (cam_req_mgr_notify_message(&req_msg,
 		V4L_EVENT_CAM_REQ_MGR_SOF_BOOT_TS,
 		V4L_EVENT_CAM_REQ_MGR_EVENT))
@@ -691,6 +698,15 @@ static void __cam_isp_ctx_send_sof_timestamp(
 		"request id:%lld frame number:%lld SOF time stamp:0x%llx status:%u",
 		 request_id, ctx_isp->frame_id,
 		ctx_isp->sof_timestamp_val, sof_event_status);
+
+	if (cam_is_log_enabled(CAM_CUSTOM)) {
+		 CAM_DBG(CAM_ISP,
+			"#request id:%lld frame number:%lld SOF time stamp:%lld\n",
+			request_id, ctx_isp->frame_id,
+			ctx_isp->sof_timestamp_val);
+	}
+
+	CAM_DBG(CAM_ISP, "sof status:%d", sof_event_status);
 
 	if (cam_req_mgr_notify_message(&req_msg,
 		V4L_EVENT_CAM_REQ_MGR_SOF, V4L_EVENT_CAM_REQ_MGR_EVENT))
@@ -3238,7 +3254,7 @@ static int __cam_isp_ctx_rdi_only_sof_in_bubble_applied(
 		 * If no pending req in epoch, this is an error case.
 		 * The recovery is to go back to sof state
 		 */
-		CAM_ERR(CAM_ISP, "No wait request");
+		CAM_ERR(CAM_ISP, "Ctx:%d No wait request", ctx->ctx_id);
 		ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_SOF;
 
 		/* Send SOF event as empty frame*/
