@@ -417,73 +417,6 @@ static void __cam_req_mgr_tbl_set_all_skip_cnt(
 }
 
 /**
- * __cam_req_mgr_find_slot_for_req()
- *
- * @brief    : Find idx from input queue at which req id is enqueued
- * @in_q     : input request queue pointer
- * @req_id   : request id which needs to be searched in input queue
- *
- * @return   : slot index where passed request id is stored, -1 for failure
- *
- */
-static int32_t __cam_req_mgr_find_slot_for_req(
-	struct cam_req_mgr_req_queue *in_q, int64_t req_id)
-{
-	int32_t                   idx, i;
-	struct cam_req_mgr_slot  *slot;
-
-	idx = in_q->rd_idx;
-	for (i = 0; i < in_q->num_slots; i++) {
-		slot = &in_q->slot[idx];
-		if (slot->req_id == req_id) {
-			CAM_DBG(CAM_CRM,
-				"req: %lld found at idx: %d status: %d sync_mode: %d",
-				req_id, idx, slot->status, slot->sync_mode);
-			break;
-		}
-		__cam_req_mgr_dec_idx(&idx, 1, in_q->num_slots);
-	}
-	if (i >= in_q->num_slots)
-		idx = -1;
-
-	return idx;
-}
-
-/**
- * __cam_req_mgr_reset_slot_sync_mode()
- *
- * @brief    : reset the sync mode for the given slot
- * @link     : link pointer
- * @req_id   : request id
- *
- */
-static void __cam_req_mgr_reset_slot_sync_mode(
-	struct cam_req_mgr_core_link *link,
-	uint64_t                      req_id)
-{
-	struct cam_req_mgr_req_queue *in_q = link->req.in_q;
-	int                           slot_idx = -1;
-
-	slot_idx = __cam_req_mgr_find_slot_for_req(
-		in_q, req_id);
-
-	if (slot_idx != -1) {
-		CAM_DBG(CAM_CRM,
-			"link %0x req %lld sync mode %d -> %d",
-			link->link_hdl,
-			(long long)req_id,
-			in_q->slot[slot_idx].sync_mode,
-			CAM_REQ_MGR_SYNC_MODE_NO_SYNC);
-		in_q->slot[slot_idx].sync_mode = CAM_REQ_MGR_SYNC_MODE_NO_SYNC;
-	} else {
-		CAM_WARN(CAM_CRM,
-			"Can't get slot on link 0x%x for req %lld",
-			link->link_hdl, req_id);
-	}
-}
-
-
-/**
  * __cam_req_mgr_flush_req_slot()
  *
  * @brief    : reset all the slots/pd tables when flush is
@@ -912,6 +845,39 @@ static int __cam_req_mgr_check_link_is_ready(struct cam_req_mgr_core_link *link,
 	}
 
 	return rc;
+}
+
+/**
+ * __cam_req_mgr_find_slot_for_req()
+ *
+ * @brief    : Find idx from input queue at which req id is enqueued
+ * @in_q     : input request queue pointer
+ * @req_id   : request id which needs to be searched in input queue
+ *
+ * @return   : slot index where passed request id is stored, -1 for failure
+ *
+ */
+static int32_t __cam_req_mgr_find_slot_for_req(
+	struct cam_req_mgr_req_queue *in_q, int64_t req_id)
+{
+	int32_t                   idx, i;
+	struct cam_req_mgr_slot  *slot;
+
+	idx = in_q->rd_idx;
+	for (i = 0; i < in_q->num_slots; i++) {
+		slot = &in_q->slot[idx];
+		if (slot->req_id == req_id) {
+			CAM_DBG(CAM_CRM,
+				"req: %lld found at idx: %d status: %d sync_mode: %d",
+				req_id, idx, slot->status, slot->sync_mode);
+			break;
+		}
+		__cam_req_mgr_dec_idx(&idx, 1, in_q->num_slots);
+	}
+	if (i >= in_q->num_slots)
+		idx = -1;
+
+	return idx;
 }
 
 /**
