@@ -1555,7 +1555,6 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 				usleep_range(1000, 1010);
 				rc = cam_sensor_apply_settings(s_ctrl, 0,
 					pkt_opcode);
-				CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG);
 			}
 			s_ctrl->i2c_data.init_settings.request_id = -1;
 
