@@ -196,9 +196,6 @@ static void cam_cci_dump_registers(struct cci_device *cci_dev,
 	uint32_t read_data_reg_offset = 0x0;
 	void __iomem *base = cci_dev->soc_info.reg_map[0].mem_base;
 
-	CAM_INFO(CAM_CCI, "**** CCI:%d register dump ****",
-		cci_dev->soc_info->index);
-
 	/* CCI Top Registers */
 	CAM_INFO(CAM_CCI, "****CCI TOP Registers ****");
 	for (i = 0; i < DEBUG_TOP_REG_COUNT; i++) {
@@ -215,9 +212,6 @@ static void cam_cci_dump_registers(struct cci_device *cci_dev,
 			CCI_I2C_M0_READ_BUF_LEVEL_ADDR + master * 0x100);
 	read_data_reg_offset = CCI_I2C_M0_READ_DATA_ADDR + master * 0x100;
 	for (i = 0; i < DEBUG_MASTER_REG_COUNT; i++) {
-		if ((i * 4) == 0x18)
-			continue;
-
 		reg_offset = DEBUG_MASTER_REG_START + master*0x100 + i * 4;
 		/*
 		 * Don't read from READ_DATA_ADDR if
